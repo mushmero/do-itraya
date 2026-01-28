@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const db = require("./database");
+const path = require("path");
 
 dotenv.config();
 
@@ -10,6 +11,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from React app in production
+if (process.env.NODE_ENV === "production") {
+  // Always serve for simplicity in this setup, or toggle with env
+  app.use(express.static(path.join(__dirname, "../client/dist")));
+}
 
 // Routes
 
@@ -202,6 +209,11 @@ app.get("/api/summary/comparison", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Serve React App for any other route (SPA Support)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
 });
 
 app.listen(PORT, () => {
