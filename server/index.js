@@ -3,26 +3,76 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const db = require("./database");
 const path = require("path");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const compression = require("compression");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const authMiddleware = require("./middleware/authMiddleware");
 
 dotenv.config();
+
+// Enforce JWT Secret
+if (!process.env.JWT_SECRET) {
+  console.error(
+    "FATAL: JWT_SECRET is not defined in the environment variables.",
+  );
+  process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+// Security Middleware (Helmet with CSP)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: [
+          "'self'",
+          "https://fonts.googleapis.com",
+          "https://fonts.gstatic.com",
+        ],
+      },
+    },
+  }),
+);
+
+// Performance Middleware
+app.use(compression());
+
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api", limiter);
+
+// CORS Configuration
+const corsOptions = {
+  origin:
+    process.env.NODE_ENV === "production"
+      ? process.env.CLIENT_URL // Adjust for your production domain
+      : "http://localhost:5173", // Default Vite dev server
+  optionsSuccessStatus: 200,
+};
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 // Serve static files from React app in production
 if (process.env.NODE_ENV === "production") {
-  // Always serve for simplicity in this setup, or toggle with env
   app.use(express.static(path.join(__dirname, "../client/dist")));
 }
 
 // Routes
-
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const authMiddleware = require("./middleware/authMiddleware");
 
 // Auth Routes
 
@@ -44,13 +94,9 @@ app.post("/api/auth/register", async (req, res) => {
       [username, email, hashedPassword],
     );
 
-    const token = jwt.sign(
-      { id: result.id, email },
-      process.env.JWT_SECRET || "your_jwt_secret_key",
-      {
-        expiresIn: "1h",
-      },
-    );
+    const token = jwt.sign({ id: result.id, email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
     res.json({ token, user: { id: result.id, username, email } });
   } catch (error) {
@@ -70,7 +116,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET || "your_jwt_secret_key",
+      process.env.JWT_SECRET,
       {
         expiresIn: "1h",
       },
