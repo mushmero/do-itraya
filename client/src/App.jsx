@@ -68,12 +68,17 @@ const Layout = ({ children }) => {
 
           <div className="flex items-center gap-4">
             {currentUser && (
-              <button
-                onClick={logout}
-                className="hidden md:block text-sm font-medium text-slate-500 hover:text-red-500 transition-colors"
-              >
-                Sign Out
-              </button>
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-semibold text-gradient-gold">
+                  {currentUser.username || currentUser.name || "User"}
+                </span>
+                <button
+                  onClick={logout}
+                  className="hidden md:block text-sm font-medium text-slate-500 hover:text-red-500 transition-colors"
+                >
+                  Sign Out
+                </button>
+              </div>
             )}
             {/* Theme Toggle */}
             <ThemeToggle />
