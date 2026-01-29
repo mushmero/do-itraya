@@ -74,7 +74,7 @@ const Layout = ({ children }) => {
                 </span>
                 <button
                   onClick={logout}
-                  className="hidden md:block text-sm font-medium text-slate-500 hover:text-red-500 transition-colors"
+                  className="hidden md:block px-4 py-2 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl transition-all shadow-lg shadow-red-500/5 active:scale-95"
                 >
                   Sign Out
                 </button>
