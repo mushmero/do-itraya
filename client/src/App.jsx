@@ -57,24 +57,26 @@ const Layout = ({ children }) => {
               <span className="text-xl font-bold text-white">R</span>
             </div>
             <div className="flex flex-col">
-              <h1 className="text-xl md:text-2xl font-bold text-gradient-gold tracking-tight leading-tight">
+              <h1 className="text-lg md:text-2xl font-bold text-gradient-gold tracking-tight leading-tight">
                 Raya Packet
               </h1>
-              <span className="text-[10px] uppercase tracking-widest dark:text-slate-400 light:text-slate-500 font-bold">
+              <span className="hidden md:block text-[10px] uppercase tracking-widest dark:text-slate-400 light:text-slate-500 font-bold">
                 Budget Planner
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {currentUser && (
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-semibold text-gradient-gold">
-                  {currentUser.username || currentUser.name || "User"}
-                </span>
+              <div className="flex items-center gap-2 md:gap-4">
+                <div className="flex flex-col items-end">
+                  <span className="block text-[10px] md:text-sm font-semibold text-gradient-gold max-w-[80px] md:max-w-none truncate">
+                    {currentUser.username || currentUser.name || "User"}
+                  </span>
+                </div>
                 <button
                   onClick={logout}
-                  className="hidden md:block px-4 py-2 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl transition-all shadow-lg shadow-red-500/5 active:scale-95"
+                  className="px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl transition-all shadow-lg shadow-red-500/5 active:scale-95"
                 >
                   Sign Out
                 </button>

@@ -171,41 +171,39 @@ const Dashboard = ({ summary, selectedYear }) => {
                     style={{ width: 20, height: 20 }}
                   />
                 </div>
-                {balanceTrend !== 0 && (
-                  <div className="flex flex-col items-end gap-1">
-                    <div
-                      className={clsx(
-                        "flex items-center gap-1 text-[10px] font-bold",
-                        balanceTrend > 0
-                          ? "text-emerald-400"
-                          : "text-orange-400",
-                      )}
-                    >
-                      {balanceTrend > 0 ? (
-                        <ArrowTrendingUpIcon
-                          className="w-3 h-3"
-                          style={{ width: 12, height: 12 }}
-                        />
-                      ) : (
-                        <ArrowTrendingDownIcon
-                          className="w-3 h-3"
-                          style={{ width: 12, height: 12 }}
-                        />
-                      )}
-                      <span>{Math.abs(balanceTrend)}%</span>
-                    </div>
-                    <div
-                      className="overflow-hidden"
-                      style={{ width: 50, height: 20 }}
-                    >
-                      <TrendSparkline
-                        trend={balanceTrend > 0 ? "up" : "down"}
-                        width={50}
-                        height={20}
+                <div className="flex flex-col items-end gap-1">
+                  <div
+                    className={clsx(
+                      "flex items-center gap-1 text-[10px] font-bold",
+                      balanceTrend >= 0
+                        ? "text-emerald-400"
+                        : "text-orange-400",
+                    )}
+                  >
+                    {balanceTrend >= 0 ? (
+                      <ArrowTrendingUpIcon
+                        className="w-3 h-3"
+                        style={{ width: 12, height: 12 }}
                       />
-                    </div>
+                    ) : (
+                      <ArrowTrendingDownIcon
+                        className="w-3 h-3"
+                        style={{ width: 12, height: 12 }}
+                      />
+                    )}
+                    <span>{Math.abs(balanceTrend)}%</span>
                   </div>
-                )}
+                  <div
+                    className="overflow-hidden"
+                    style={{ width: 50, height: 20 }}
+                  >
+                    <TrendSparkline
+                      trend={balanceTrend >= 0 ? "up" : "down"}
+                      width={50}
+                      height={20}
+                    />
+                  </div>
+                </div>
               </div>
 
               <p className="text-[10px] uppercase tracking-widest dark:text-slate-400 light:text-slate-500 font-bold mb-2">
