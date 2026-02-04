@@ -13,6 +13,7 @@ model User {
   email      String    @unique(map: "sqlite_autoindex_users_1")
   password   String
   created_at DateTime? @default(now())
+  is_admin   Boolean?  @default(false)
   receivers  Receiver[]
 
   @@map("users")

@@ -11,6 +11,7 @@ const compression = require("compression");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("./middleware/authMiddleware");
+const adminMiddleware = require("./middleware/adminMiddleware");
 
 // Enforce JWT Secret
 if (!process.env.JWT_SECRET) {
@@ -99,11 +100,23 @@ app.post("/api/auth/register", async (req, res) => {
       },
     });
 
-    const token = jwt.sign({ id: result.id, email }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { id: result.id, email, is_admin: false },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+      },
+    );
 
-    res.json({ token, user: { id: result.id, username, email } });
+    res.json({
+      token,
+      user: {
+        id: result.id,
+        username,
+        email,
+        is_admin: false,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -122,7 +135,7 @@ app.post("/api/auth/login", async (req, res) => {
     if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, is_admin: user.is_admin || false },
       process.env.JWT_SECRET,
       {
         expiresIn: "1h",
@@ -131,12 +144,92 @@ app.post("/api/auth/login", async (req, res) => {
 
     res.json({
       token,
-      user: { id: user.id, username: user.username, email: user.email },
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        is_admin: user.is_admin || false,
+      },
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Get all users (Admin Only)
+app.get("/api/users", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        is_admin: true,
+        created_at: true,
+      },
+    });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get all receivers (Protected & User Scoped)
+// Delete User (Admin Only)
+app.delete(
+  "/api/users/:id",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    const { id } = req.params;
+    try {
+      // Prevent deleting self
+      if (req.user.id === parseInt(id)) {
+        return res
+          .status(400)
+          .json({ error: "Cannot delete your own admin account" });
+      }
+
+      const result = await prisma.user.delete({
+        where: { id: parseInt(id) },
+      });
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+// Reset Password (Admin Only)
+app.put(
+  "/api/users/:id/reset-password",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters" });
+    }
+
+    try {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      await prisma.user.update({
+        where: { id: parseInt(id) },
+        data: { password: hashedPassword },
+      });
+
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
 
 // Get all receivers (Protected & User Scoped)
 app.get("/api/receivers", authMiddleware, async (req, res) => {

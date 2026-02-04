@@ -1,5 +1,6 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
+import AdminDashboard from "./pages/AdminDashboard";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -74,6 +75,14 @@ const Layout = ({ children }) => {
                     {currentUser.username || currentUser.name || "User"}
                   </span>
                 </div>
+                {currentUser.is_admin && (
+                  <Link
+                    to="/admin"
+                    className="px-2 py-1 md:px-2 md:py-1 text-[10px] md:text-xs font-bold text-white bg-gradient-to-r from-accent via-amber-500 to-yellow-500 border border-yellow-900 rounded-md transition-all shadow-sm"
+                  >
+                    Admin
+                  </Link>
+                )}
                 <button
                   onClick={logout}
                   className="px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl transition-all shadow-lg shadow-red-500/5 active:scale-95"
@@ -108,6 +117,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <HomePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <AdminDashboard />
                   </ProtectedRoute>
                 }
               />
