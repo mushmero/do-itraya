@@ -7,15 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model users {
+model User {
   id         Int       @id @default(autoincrement())
   username   String
   email      String    @unique(map: "sqlite_autoindex_users_1")
   password   String
   created_at DateTime? @default(now())
+  receivers  Receiver[]
+
+  @@map("users")
 }
 
-model receivers {
+model Receiver {
   id                Int     @id @default(autoincrement())
   name              String
   children_count    Int?    @default(0)
@@ -26,4 +29,8 @@ model receivers {
   type              String? @default("family")
   year              Int?    @default(2026)
   user_id           Int?
+  user              User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("receivers")
 }

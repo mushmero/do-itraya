@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
+dotenv.config();
+
 const prisma = require("./prismaClient");
 const path = require("path");
 const helmet = require("helmet");
@@ -9,8 +11,6 @@ const compression = require("compression");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("./middleware/authMiddleware");
-
-dotenv.config();
 
 // Enforce JWT Secret
 if (!process.env.JWT_SECRET) {
@@ -82,7 +82,7 @@ if (process.env.NODE_ENV === "production") {
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password } = req.body;
   try {
-    const existingUser = await prisma.users.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email },
     });
     if (existingUser)
@@ -91,7 +91,7 @@ app.post("/api/auth/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const result = await prisma.users.create({
+    const result = await prisma.user.create({
       data: {
         username,
         email,
@@ -113,7 +113,7 @@ app.post("/api/auth/register", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await prisma.users.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email },
     });
     if (!user) return res.status(400).json({ error: "Invalid credentials" });
@@ -147,7 +147,7 @@ app.get("/api/receivers", authMiddleware, async (req, res) => {
     const where = { user_id: userId };
     if (year) where.year = parseInt(year);
 
-    const receivers = await prisma.receivers.findMany({
+    const receivers = await prisma.receiver.findMany({
       where,
       orderBy: { id: "desc" },
     });
@@ -164,7 +164,7 @@ app.post("/api/receivers", authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const info = await prisma.receivers.create({
+    const info = await prisma.receiver.create({
       data: {
         name,
         type: type || "family",
@@ -213,7 +213,7 @@ app.put("/api/receivers/:id", authMiddleware, async (req, res) => {
       return res.json({ message: "No changes" });
 
     // Use updateMany to safely update only if owned by user
-    const result = await prisma.receivers.updateMany({
+    const result = await prisma.receiver.updateMany({
       where: {
         id: parseInt(id),
         user_id: userId,
@@ -239,7 +239,7 @@ app.delete("/api/receivers/:id", authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const result = await prisma.receivers.deleteMany({
+    const result = await prisma.receiver.deleteMany({
       where: {
         id: parseInt(id),
         user_id: userId,
@@ -271,7 +271,7 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
     };
     if (year) where.year = parseInt(year);
 
-    const receivers = await prisma.receivers.findMany({
+    const receivers = await prisma.receiver.findMany({
       where,
       select: {
         children_count: true,
@@ -333,7 +333,7 @@ app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   try {
     // Fetch all eligible data for user
-    const receivers = await prisma.receivers.findMany({
+    const receivers = await prisma.receiver.findMany({
       where: {
         user_id: userId,
         is_eligible: 1,
