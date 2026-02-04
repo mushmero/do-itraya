@@ -99,15 +99,29 @@ The application will be available at:
 
 ### Recommended Hosting Options
 
-1.  **VPS (DigitalOcean/EC2)**:
+1.  **VPS (DigitalOcean/EC2) - Recommended**:
     - Upload the project.
-    - Run `npm run build` in client.
+    - Run `npm run build` in `client`.
+    - Run `npx prisma migrate deploy` in `server` to initialize/update the production DB.
     - Use `pm2` to keep `server/index.js` running.
-    - Use Nginx as a reverse proxy to port 3000.
+    - Use Nginx as a reverse proxy.
 2.  **Render/Railway/Heroku**:
-    - Set the Root Directory to `server`.
-    - Add a build script in `server/package.json` found by the provider to also install/build client.
-    - _Simplest for this setup: VPS or Docker._
+    - **Important**: SQLite requires a persistent disk. If using ephemeral file systems (like standard Heroku/Render), your data will be lost on restart. ensure you mount a volume.
+    - Add a build command to install dependencies and build the client.
+    - Add a start command: `npx prisma migrate deploy && node index.js`.
+
+### Post-Deployment Setup (Admin Access)
+
+After deploying to production, the database will be fresh (or updated). You must manually assign the admin role to your user:
+
+1.  Register a user account in the live app.
+2.  Access the server (SSH or Console).
+3.  Open the database:
+    ```bash
+    cd server
+    sqlite3 database.db "UPDATE users SET is_admin=1 WHERE email='your@email.com';"
+    ```
+4.  Log out and log back in to see the Admin features.
 
 ---
 
