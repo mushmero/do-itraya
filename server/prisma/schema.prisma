@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id         Int       @id @default(autoincrement())
+  username   String
+  email      String    @unique(map: "sqlite_autoindex_users_1")
+  password   String
+  created_at DateTime? @default(now())
+}
+
+model receivers {
+  id                Int     @id @default(autoincrement())
+  name              String
+  children_count    Int?    @default(0)
+  is_eligible       Int?    @default(1)
+  is_received       Int?    @default(0)
+  amount_per_packet Int?    @default(10)
+  cash_note         Int?    @default(10)
+  type              String? @default("family")
+  year              Int?    @default(2026)
+  user_id           Int?
+}

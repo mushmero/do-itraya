@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const db = require("./database");
+const prisma = require("./prismaClient");
 const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -21,6 +21,8 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
+// Enable trust proxy for rate limiting behind proxies (e.g. Heroku, Nginx, etc)
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
 // Security Middleware (Helmet with CSP)
@@ -80,19 +82,22 @@ if (process.env.NODE_ENV === "production") {
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password } = req.body;
   try {
-    const existingUser = await db.get("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
+    const existingUser = await prisma.users.findUnique({
+      where: { email },
+    });
     if (existingUser)
       return res.status(400).json({ error: "User already exists" });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const result = await db.run(
-      "INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-      [username, email, hashedPassword],
-    );
+    const result = await prisma.users.create({
+      data: {
+        username,
+        email,
+        password: hashedPassword,
+      },
+    });
 
     const token = jwt.sign({ id: result.id, email }, process.env.JWT_SECRET, {
       expiresIn: "1h",
@@ -108,7 +113,9 @@ app.post("/api/auth/register", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await db.get("SELECT * FROM users WHERE email = ?", [email]);
+    const user = await prisma.users.findUnique({
+      where: { email },
+    });
     if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -137,17 +144,13 @@ app.get("/api/receivers", authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    let query = "SELECT * FROM receivers WHERE user_id = ?";
-    let params = [userId];
+    const where = { user_id: userId };
+    if (year) where.year = parseInt(year);
 
-    if (year) {
-      query += " AND year = ?";
-      params.push(year);
-    }
-
-    query += " ORDER BY id DESC";
-
-    const receivers = await db.query(query, params);
+    const receivers = await prisma.receivers.findMany({
+      where,
+      orderBy: { id: "desc" },
+    });
     res.json(receivers);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -161,18 +164,17 @@ app.post("/api/receivers", authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    const info = await db.run(
-      "INSERT INTO receivers (name, type, children_count, amount_per_packet, cash_note, year, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [
+    const info = await prisma.receivers.create({
+      data: {
         name,
-        type || "family",
-        children_count || 0,
-        amount_per_packet || 10,
-        cash_note || 10,
-        year || 2026,
-        userId,
-      ],
-    );
+        type: type || "family",
+        children_count: children_count || 0,
+        amount_per_packet: amount_per_packet || 10,
+        cash_note: cash_note || 10,
+        year: year || 2026,
+        user_id: userId,
+      },
+    });
     res.json({ id: info.id, ...req.body, user_id: userId });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -196,52 +198,35 @@ app.put("/api/receivers/:id", authMiddleware, async (req, res) => {
   } = req.body;
 
   try {
-    // Build dynamic update query
-    const updates = [];
-    const params = [];
+    const data = {};
+    if (name !== undefined) data.name = name;
+    if (type !== undefined) data.type = type;
+    if (children_count !== undefined) data.children_count = children_count;
+    if (is_eligible !== undefined) data.is_eligible = is_eligible ? 1 : 0;
+    if (is_received !== undefined) data.is_received = is_received ? 1 : 0;
+    if (amount_per_packet !== undefined)
+      data.amount_per_packet = amount_per_packet;
+    if (cash_note !== undefined) data.cash_note = cash_note;
+    if (year !== undefined) data.year = year;
 
-    if (name !== undefined) {
-      updates.push("name = ?");
-      params.push(name);
-    }
-    if (type !== undefined) {
-      updates.push("type = ?");
-      params.push(type);
-    }
-    if (children_count !== undefined) {
-      updates.push("children_count = ?");
-      params.push(children_count);
-    }
-    if (is_eligible !== undefined) {
-      updates.push("is_eligible = ?");
-      params.push(is_eligible ? 1 : 0);
-    }
-    if (is_received !== undefined) {
-      updates.push("is_received = ?");
-      params.push(is_received ? 1 : 0);
-    }
-    if (amount_per_packet !== undefined) {
-      updates.push("amount_per_packet = ?");
-      params.push(amount_per_packet);
-    }
-    if (cash_note !== undefined) {
-      updates.push("cash_note = ?");
-      params.push(cash_note);
-    }
-    if (year !== undefined) {
-      updates.push("year = ?");
-      params.push(year);
+    if (Object.keys(data).length === 0)
+      return res.json({ message: "No changes" });
+
+    // Use updateMany to safely update only if owned by user
+    const result = await prisma.receivers.updateMany({
+      where: {
+        id: parseInt(id),
+        user_id: userId,
+      },
+      data,
+    });
+
+    if (result.count === 0) {
+      return res
+        .status(404)
+        .json({ error: "Receiver not found or access denied" });
     }
 
-    if (updates.length === 0) return res.json({ message: "No changes" });
-
-    params.push(id);
-    params.push(userId); // Ensure user owns the record
-
-    // Add user_id check to WHERE clause
-    const query = `UPDATE receivers SET ${updates.join(", ")} WHERE id = ? AND user_id = ?`;
-
-    await db.run(query, params);
     res.json({ message: "Updated successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -254,10 +239,19 @@ app.delete("/api/receivers/:id", authMiddleware, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    await db.run("DELETE FROM receivers WHERE id = ? AND user_id = ?", [
-      id,
-      userId,
-    ]);
+    const result = await prisma.receivers.deleteMany({
+      where: {
+        id: parseInt(id),
+        user_id: userId,
+      },
+    });
+
+    if (result.count === 0) {
+      return res
+        .status(404)
+        .json({ error: "Receiver not found or access denied" });
+    }
+
     res.json({ message: "Deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -265,52 +259,63 @@ app.delete("/api/receivers/:id", authMiddleware, async (req, res) => {
 });
 
 // Get Summary Breakdown (Protected & User Scoped)
+// Get Summary Breakdown (Protected & User Scoped)
 app.get("/api/summary", authMiddleware, async (req, res) => {
   const { year } = req.query;
   const userId = req.user.id;
 
-  // Base Where Clause including User ID
-  const baseWhere = `WHERE is_eligible = 1 AND user_id = ? ${year ? "AND year = ?" : ""}`;
-  const baseParams = year ? [userId, year] : [userId];
-
   try {
-    // Total Planned (All Eligible for User)
-    const plannedResult = await db.get(
-      `
-            SELECT SUM(children_count * amount_per_packet) as total 
-            FROM receivers 
-            ${baseWhere}
-        `,
-      baseParams,
-    );
-    const totalPlanned = plannedResult.total || 0;
+    const where = {
+      user_id: userId,
+      is_eligible: 1,
+    };
+    if (year) where.year = parseInt(year);
 
-    // Total Distributed (Received for User)
-    // Need separate where clause for distributed
-    const distributedWhere = `WHERE is_received = 1 AND is_eligible = 1 AND user_id = ? ${year ? "AND year = ?" : ""}`;
-    const distributedResult = await db.get(
-      `
-            SELECT SUM(children_count * amount_per_packet) as total 
-            FROM receivers 
-            ${distributedWhere}
-        `,
-      baseParams,
-    );
-    const totalDistributed = distributedResult.total || 0;
+    const receivers = await prisma.receivers.findMany({
+      where,
+      select: {
+        children_count: true,
+        amount_per_packet: true,
+        is_received: true,
+        cash_note: true,
+      },
+    });
 
-    // Notes Breakdown (Eligible Only for User)
-    const notesBreakdown = await db.query(
-      `
-            SELECT 
-                cash_note,
-                SUM(children_count * (amount_per_packet / cash_note)) as total_count,
-                SUM(CASE WHEN is_received = 0 THEN children_count * (amount_per_packet / cash_note) ELSE 0 END) as remaining_count
-            FROM receivers
-            ${baseWhere}
-            GROUP BY cash_note
-        `,
-      baseParams,
-    );
+    let totalPlanned = 0;
+    let totalDistributed = 0;
+    const notesMap = {};
+
+    receivers.forEach((r) => {
+      const count = r.children_count || 0;
+      const amount = r.amount_per_packet || 0;
+      const total = count * amount;
+
+      totalPlanned += total;
+      if (r.is_received === 1) totalDistributed += total;
+
+      const note = r.cash_note || 10;
+
+      // Initialize if not exists
+      if (!notesMap[note]) {
+        notesMap[note] = {
+          cash_note: note,
+          total_count: 0,
+          remaining_count: 0,
+        };
+      }
+
+      // Calculate number of physical notes
+      // Assumption: amount_per_packet is divisible by cash_note, or logic handles it.
+      // Existing SQL was: children_count * (amount_per_packet / cash_note)
+      const notesForReceiver = count * (amount / note);
+
+      notesMap[note].total_count += notesForReceiver;
+      if (r.is_received === 0) {
+        notesMap[note].remaining_count += notesForReceiver;
+      }
+    });
+
+    const notesBreakdown = Object.values(notesMap);
 
     res.json({
       total_planned: totalPlanned,
@@ -327,18 +332,40 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
 app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   try {
-    const comparison = await db.query(
-      `
-      SELECT 
-        year,
-        SUM(CASE WHEN is_eligible = 1 THEN children_count * amount_per_packet ELSE 0 END) as total_budget,
-        SUM(CASE WHEN is_eligible = 1 AND is_received = 1 THEN children_count * amount_per_packet ELSE 0 END) as total_distributed
-      FROM receivers
-      WHERE user_id = ?
-      GROUP BY year
-      ORDER BY year ASC
-    `,
-      [userId],
+    // Fetch all eligible data for user
+    const receivers = await prisma.receivers.findMany({
+      where: {
+        user_id: userId,
+        is_eligible: 1,
+      },
+      select: {
+        year: true,
+        children_count: true,
+        amount_per_packet: true,
+        is_received: true,
+      },
+      orderBy: { year: "asc" },
+    });
+
+    // Group by year
+    const comparisonMap = {};
+
+    receivers.forEach((r) => {
+      const year = r.year || 2026;
+      if (!comparisonMap[year]) {
+        comparisonMap[year] = { year, total_budget: 0, total_distributed: 0 };
+      }
+
+      const amount = (r.children_count || 0) * (r.amount_per_packet || 0);
+      comparisonMap[year].total_budget += amount;
+
+      if (r.is_received === 1) {
+        comparisonMap[year].total_distributed += amount;
+      }
+    });
+
+    const comparison = Object.values(comparisonMap).sort(
+      (a, b) => a.year - b.year,
     );
     res.json(comparison);
   } catch (error) {
