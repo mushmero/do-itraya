@@ -10,4 +10,16 @@ export default defineConfig({
     },
     allowedHosts: ["do-itraya.test", "www.do-itraya.test", "*.do-itraya.test"],
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          ui: ["framer-motion"],
+          charts: ["recharts"],
+        },
+      },
+    },
+  },
 });
