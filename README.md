@@ -139,7 +139,9 @@ do-itraya/
 │   ├── dist/         # Build output (after npm run build)
 │   └── ...
 ├── server/           # Node Backend
-│   ├── database.js   # SQLite connection & schema
+│   ├── prisma/       # Database Schema & Migrations
+│   │   └── schema.prisma
+│   ├── database.db   # SQLite Database
 │   ├── index.js      # Express API & Static Server
 │   └── ...
 └── README.md
