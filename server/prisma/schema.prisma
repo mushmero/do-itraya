@@ -23,8 +23,8 @@ model Receiver {
   id                Int     @id @default(autoincrement())
   name              String
   children_count    Int?    @default(0)
-  is_eligible       Int?    @default(1)
-  is_received       Int?    @default(0)
+  is_eligible       Boolean? @default(true)
+  is_received       Boolean? @default(false)
   amount_per_packet Int?    @default(10)
   cash_note         Int?    @default(10)
   type              String? @default("family")

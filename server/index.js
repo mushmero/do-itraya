@@ -295,8 +295,8 @@ app.put("/api/receivers/:id", authMiddleware, async (req, res) => {
     if (name !== undefined) data.name = name;
     if (type !== undefined) data.type = type;
     if (children_count !== undefined) data.children_count = children_count;
-    if (is_eligible !== undefined) data.is_eligible = is_eligible ? 1 : 0;
-    if (is_received !== undefined) data.is_received = is_received ? 1 : 0;
+    if (is_eligible !== undefined) data.is_eligible = is_eligible;
+    if (is_received !== undefined) data.is_received = is_received;
     if (amount_per_packet !== undefined)
       data.amount_per_packet = amount_per_packet;
     if (cash_note !== undefined) data.cash_note = cash_note;
@@ -360,7 +360,7 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
   try {
     const where = {
       user_id: userId,
-      is_eligible: 1,
+      is_eligible: true,
     };
     if (year) where.year = parseInt(year);
 
@@ -384,7 +384,7 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
       const total = count * amount;
 
       totalPlanned += total;
-      if (r.is_received === 1) totalDistributed += total;
+      if (r.is_received === true) totalDistributed += total;
 
       const note = r.cash_note || 10;
 
@@ -403,7 +403,7 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
       const notesForReceiver = count * (amount / note);
 
       notesMap[note].total_count += notesForReceiver;
-      if (r.is_received === 0) {
+      if (r.is_received === false) {
         notesMap[note].remaining_count += notesForReceiver;
       }
     });
@@ -429,7 +429,7 @@ app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
     const receivers = await prisma.receiver.findMany({
       where: {
         user_id: userId,
-        is_eligible: 1,
+        is_eligible: true,
       },
       select: {
         year: true,
@@ -452,7 +452,7 @@ app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
       const amount = (r.children_count || 0) * (r.amount_per_packet || 0);
       comparisonMap[year].total_budget += amount;
 
-      if (r.is_received === 1) {
+      if (r.is_received === true) {
         comparisonMap[year].total_distributed += amount;
       }
     });
