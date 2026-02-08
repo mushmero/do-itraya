@@ -1,7 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-dotenv.config();
+const dotenvExpand = require("dotenv-expand");
+
+const myEnv = dotenv.config();
+dotenvExpand.expand(myEnv);
 
 const prisma = require("./prismaClient");
 const path = require("path");
@@ -467,9 +470,11 @@ app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
 });
 
 // Serve React App for any other route (SPA Support)
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
-});
+if (process.env.NODE_ENV === "production") {
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
