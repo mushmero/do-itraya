@@ -1,0 +1,12 @@
+{
+  "name": "do-itraya",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Raya Packet Budget Planner",
+  "scripts": {
+    "dev": "node server/index.js",
+    "start": "node server/index.js",
+    "build": "npm run build --prefix client",
+    "reset-password": "node server/scripts/resetPassword.js"
+  }
+}

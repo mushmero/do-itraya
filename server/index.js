@@ -1,20 +1,22 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
 const dotenv = require("dotenv");
 const dotenvExpand = require("dotenv-expand");
 
-const myEnv = dotenv.config();
+const myEnv = dotenv.config({ path: path.join(__dirname, ".env") });
 dotenvExpand.expand(myEnv);
 
 const prisma = require("./prismaClient");
-const path = require("path");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
 const compression = require("compression");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("./middleware/authMiddleware");
 const adminMiddleware = require("./middleware/adminMiddleware");
+const errorHandler = require("./middleware/errorHandler");
+const { validateBody } = require("./middleware/validate");
 
 // Enforce JWT Secret
 if (!process.env.JWT_SECRET) {
@@ -29,23 +31,30 @@ const app = express();
 app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
-// Security Middleware (Helmet with CSP)
+// Security Middleware (Helmet with CSP in production)
 app.use(
   helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        connectSrc: [
-          "'self'",
-          "https://fonts.googleapis.com",
-          "https://fonts.gstatic.com",
-        ],
-      },
-    },
+    contentSecurityPolicy:
+      process.env.NODE_ENV === "production"
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'"],
+              styleSrc: [
+                "'self'",
+                "'unsafe-inline'",
+                "https://fonts.googleapis.com",
+              ],
+              fontSrc: ["'self'", "https://fonts.gstatic.com"],
+              imgSrc: ["'self'", "data:", "https:"],
+              connectSrc: [
+                "'self'",
+                "https://fonts.googleapis.com",
+                "https://fonts.gstatic.com",
+              ],
+            },
+          }
+        : false,
   }),
 );
 
@@ -53,13 +62,9 @@ app.use(
 app.use(compression());
 
 // Rate Limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use("/api", limiter);
+const { authLimiter, apiLimiter } = require("./middleware/rateLimiter");
+app.use("/api/auth", authLimiter);
+app.use("/api", apiLimiter);
 
 // CORS Configuration
 const corsOptions = {
@@ -73,17 +78,15 @@ app.use(cors(corsOptions));
 
 app.use(express.json());
 
-// Serve static files from React app in production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../client/dist")));
-}
-
 // Routes
 
 // Auth Routes
 
 // Register
-app.post("/api/auth/register", async (req, res) => {
+app.post(
+  "/api/auth/register",
+  validateBody("register"),
+  async (req, res, next) => {
   const { username, email, password } = req.body;
   try {
     const existingUser = await prisma.user.findUnique({
@@ -121,12 +124,15 @@ app.post("/api/auth/register", async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
 // Login
-app.post("/api/auth/login", async (req, res) => {
+app.post(
+  "/api/auth/login",
+  validateBody("login"),
+  async (req, res, next) => {
   const { email, password } = req.body;
   try {
     const user = await prisma.user.findUnique({
@@ -155,12 +161,12 @@ app.post("/api/auth/login", async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
 // Get all users (Admin Only)
-app.get("/api/users", authMiddleware, adminMiddleware, async (req, res) => {
+app.get("/api/users", authMiddleware, adminMiddleware, async (req, res, next) => {
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -173,7 +179,7 @@ app.get("/api/users", authMiddleware, adminMiddleware, async (req, res) => {
     });
     res.json(users);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
@@ -183,7 +189,7 @@ app.delete(
   "/api/users/:id",
   authMiddleware,
   adminMiddleware,
-  async (req, res) => {
+  async (req, res, next) => {
     const { id } = req.params;
     try {
       // Prevent deleting self
@@ -198,7 +204,7 @@ app.delete(
       });
       res.json({ message: "User deleted successfully" });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   },
 );
@@ -208,15 +214,10 @@ app.put(
   "/api/users/:id/reset-password",
   authMiddleware,
   adminMiddleware,
-  async (req, res) => {
+  validateBody("resetPassword"),
+  async (req, res, next) => {
     const { id } = req.params;
     const { newPassword } = req.body;
-
-    if (!newPassword || newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({ error: "Password must be at least 6 characters" });
-    }
 
     try {
       const salt = await bcrypt.genSalt(10);
@@ -229,13 +230,13 @@ app.put(
 
       res.json({ message: "Password reset successfully" });
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      next(error);
     }
   },
 );
 
 // Get all receivers (Protected & User Scoped)
-app.get("/api/receivers", authMiddleware, async (req, res) => {
+app.get("/api/receivers", authMiddleware, async (req, res, next) => {
   const { year } = req.query;
   const userId = req.user.id;
 
@@ -249,88 +250,107 @@ app.get("/api/receivers", authMiddleware, async (req, res) => {
     });
     res.json(receivers);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
 // Create receiver (Protected & User Scoped)
-app.post("/api/receivers", authMiddleware, async (req, res) => {
-  const { name, type, children_count, amount_per_packet, cash_note, year } =
-    req.body;
-  const userId = req.user.id;
+app.post(
+  "/api/receivers",
+  authMiddleware,
+  validateBody("createReceiver"),
+  async (req, res, next) => {
+    const { name, type, children_count, amount_per_packet, cash_note, year } =
+      req.body;
+    const userId = req.user.id;
 
-  try {
-    const info = await prisma.receiver.create({
-      data: {
-        name,
-        type: type || "family",
-        children_count: children_count || 0,
-        amount_per_packet: amount_per_packet || 10,
-        cash_note: cash_note || 10,
-        year: year || 2026,
-        user_id: userId,
-      },
-    });
-    res.json({ id: info.id, ...req.body, user_id: userId });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+    try {
+      const info = await prisma.receiver.create({
+        data: {
+          name: name ? String(name).trim() : "",
+          type: type || "family",
+          children_count:
+            children_count !== undefined ? parseInt(children_count, 10) : 0,
+          amount_per_packet:
+            amount_per_packet !== undefined
+              ? parseInt(amount_per_packet, 10)
+              : 10,
+          cash_note: cash_note !== undefined ? parseInt(cash_note, 10) : 10,
+          year: year !== undefined ? parseInt(year, 10) : 2026,
+          is_eligible:
+            req.body.is_eligible !== undefined
+              ? Boolean(req.body.is_eligible)
+              : true,
+          user_id: userId,
+        },
+      });
+      res.json({ id: info.id, ...req.body, user_id: userId });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 // Update receiver (Protected & User Scoped)
-app.put("/api/receivers/:id", authMiddleware, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
+app.put(
+  "/api/receivers/:id",
+  authMiddleware,
+  validateBody("createReceiver"),
+  async (req, res, next) => {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  const {
-    name,
-    type,
-    children_count,
-    is_eligible,
-    is_received,
-    amount_per_packet,
-    cash_note,
-    year,
-  } = req.body;
+    const {
+      name,
+      type,
+      children_count,
+      is_eligible,
+      is_received,
+      amount_per_packet,
+      cash_note,
+      year,
+    } = req.body;
 
-  try {
-    const data = {};
-    if (name !== undefined) data.name = name;
-    if (type !== undefined) data.type = type;
-    if (children_count !== undefined) data.children_count = children_count;
-    if (is_eligible !== undefined) data.is_eligible = is_eligible;
-    if (is_received !== undefined) data.is_received = is_received;
-    if (amount_per_packet !== undefined)
-      data.amount_per_packet = amount_per_packet;
-    if (cash_note !== undefined) data.cash_note = cash_note;
-    if (year !== undefined) data.year = year;
+    try {
+      const data = {};
+      if (name !== undefined) data.name = String(name).trim();
+      if (type !== undefined) data.type = type;
+      if (children_count !== undefined)
+        data.children_count = parseInt(children_count, 10);
+      if (is_eligible !== undefined) data.is_eligible = Boolean(is_eligible);
+      if (is_received !== undefined) data.is_received = Boolean(is_received);
+      if (amount_per_packet !== undefined)
+        data.amount_per_packet = parseInt(amount_per_packet, 10);
+      if (cash_note !== undefined) data.cash_note = parseInt(cash_note, 10);
+      if (year !== undefined) data.year = parseInt(year, 10);
 
-    if (Object.keys(data).length === 0)
-      return res.json({ message: "No changes" });
+      if (Object.keys(data).length === 0)
+        return res.json({ message: "No changes" });
 
-    // Use updateMany to safely update only if owned by user
-    const result = await prisma.receiver.updateMany({
-      where: {
-        id: parseInt(id),
-        user_id: userId,
-      },
-      data,
-    });
+      // Use updateMany to safely update only if owned by user
+      const result = await prisma.receiver.updateMany({
+        where: {
+          id: parseInt(id),
+          user_id: userId,
+        },
+        data,
+      });
 
-    if (result.count === 0) {
-      return res
-        .status(404)
-        .json({ error: "Receiver not found or access denied" });
+      if (result.count === 0) {
+        return res
+          .status(404)
+          .json({ error: "Receiver not found or access denied" });
+      }
+
+      res.json({ message: "Updated successfully" });
+    } catch (error) {
+      next(error);
     }
-
-    res.json({ message: "Updated successfully" });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
+  },
+);
 
 // Delete receiver (Protected & User Scoped)
-app.delete("/api/receivers/:id", authMiddleware, async (req, res) => {
+app.delete("/api/receivers/:id", authMiddleware, async (req, res, next) => {
   const { id } = req.params;
   const userId = req.user.id;
 
@@ -350,13 +370,12 @@ app.delete("/api/receivers/:id", authMiddleware, async (req, res) => {
 
     res.json({ message: "Deleted successfully" });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
 // Get Summary Breakdown (Protected & User Scoped)
-// Get Summary Breakdown (Protected & User Scoped)
-app.get("/api/summary", authMiddleware, async (req, res) => {
+app.get("/api/summary", authMiddleware, async (req, res, next) => {
   const { year } = req.query;
   const userId = req.user.id;
 
@@ -389,7 +408,7 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
       totalPlanned += total;
       if (r.is_received === true) totalDistributed += total;
 
-      const note = r.cash_note || 10;
+      const note = r.cash_note && r.cash_note > 0 ? r.cash_note : 10;
 
       // Initialize if not exists
       if (!notesMap[note]) {
@@ -420,12 +439,12 @@ app.get("/api/summary", authMiddleware, async (req, res) => {
       notes_breakdown: notesBreakdown,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
 // Get Yearly Comparison (Protected & User Scoped)
-app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
+app.get("/api/summary/comparison", authMiddleware, async (req, res, next) => {
   const userId = req.user.id;
   try {
     // Fetch all eligible data for user
@@ -465,17 +484,92 @@ app.get("/api/summary/comparison", authMiddleware, async (req, res) => {
     );
     res.json(comparison);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    next(error);
   }
 });
 
-// Serve React App for any other route (SPA Support)
-if (process.env.NODE_ENV === "production") {
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+// Frontend & Server Startup
+const http = require("http");
+const { pathToFileURL } = require("url");
+
+async function startServer() {
+  const isProduction = process.env.NODE_ENV === "production";
+  const distPath = path.join(__dirname, "../client/dist");
+  const server = http.createServer(app);
+
+  if (isProduction) {
+    // Serve static files from React production build
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  } else {
+    // Development Mode: Mount Vite in middleware mode for instant Hot Module Replacement (HMR) without building
+    try {
+      const clientDir = path.resolve(__dirname, "../client");
+      const vitePath = pathToFileURL(
+        path.resolve(clientDir, "node_modules/vite/dist/node/index.js")
+      ).href;
+      const { createServer } = await import(vitePath);
+      const vite = await createServer({
+        configFile: path.resolve(clientDir, "vite.config.js"),
+        root: clientDir,
+        server: {
+          middlewareMode: true,
+          hmr: {
+            server, // Binds Vite's HMR WebSocket directly to the HTTP server
+          },
+        },
+        appType: "custom",
+      });
+      app.use(vite.middlewares);
+
+      // Serve index.html for all non-API SPA routes transformed by Vite
+      app.use("*", async (req, res, next) => {
+        const url = req.originalUrl;
+        if (url.startsWith("/api")) {
+          return next();
+        }
+        try {
+          let template = fs.readFileSync(
+            path.resolve(clientDir, "index.html"),
+            "utf-8"
+          );
+          template = await vite.transformIndexHtml(url, template);
+          res.status(200).set({ "Content-Type": "text/html" }).end(template);
+        } catch (e) {
+          if (vite && vite.ssrFixStacktrace) {
+            vite.ssrFixStacktrace(e);
+          }
+          next(e);
+        }
+      });
+      console.log("Vite development middleware mounted (live HMR active)");
+    } catch (err) {
+      console.error(
+        "Warning: Failed to load Vite middleware, falling back to static files:",
+        err.message
+      );
+      if (fs.existsSync(distPath)) {
+        app.use(express.static(distPath));
+        app.get("*", (req, res) => {
+          res.sendFile(path.join(distPath, "index.html"));
+        });
+      }
+    }
+  }
+
+  // Centralized Error Handler
+  app.use(errorHandler);
+
+  server.listen(PORT, () => {
+    console.log(
+      `Server running on port ${PORT} [${isProduction ? "production" : "development"}]`
+    );
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+startServer().catch((err) => {
+  console.error("FATAL: Server startup failed:", err);
+  process.exit(1);
 });
