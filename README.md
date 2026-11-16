@@ -1,148 +1,181 @@
 # Raya Packet Budget Planner 🌙✨
 
-A modern, premium Digital Budget Planner for tracking festive money packets (Duit Raya). Built with a focus on beautiful UI/UX, family management, and year-over-year tracking.
+> **A modern, full-stack digital budget planner for festive money packets (Duit Raya).**  
+> Built with React 18, Vite 5, Node.js Express, PostgreSQL, and Prisma with a focus on festive UI/UX, family categorization, cash note calculation, and printable bank withdrawal slips.
 
-![Dashboard Preview](./docs/image/dashboard-preview.png)
+<p align="center">
+  <img src="./docs/image/dashboard-preview.png" alt="Dashboard Preview" width="850" style="border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+</p>
 
-## ✨ Features
+---
 
-- **Dashboard Overview**: Track Total Budget, Distributed Amounts, and Balance in real-time.
-- **Yearly Organization**: seamless switching between years (e.g., 2025, 2026) to manage historical data.
-- **Family & Individual Management**:
-  - Add "Factories" (Families with kids) or Single Individuals (Elderly/Relatives).
-  - Auto-calculation of total cash needed based on kid count and rate.
-- **Smart Analytics**:
-  - **Cash Notes Breakdown**: Tells you exactly how many RM1, RM5, RM10, etc. notes you need to withdraw.
-  - **Yearly Comparison**: Bar chart comparing budget performance across years.
-- **Premium UI**: Glassmorphism design, staggered animations, mobile-first responsive layout, and Dark/Light mode support.
+## ⚡ Key Highlights
+
+| Feature | Description |
+| :--- | :--- |
+| 📊 **Real-time Overview** | Real-time budget tracking: Total Budget, Distributed Amounts, Remaining Balance, and Progress Rings. |
+| 📅 **Multi-Year History** | Seamlessly switch between festive years (e.g. 2024, 2025, 2026) to track past spending and future plans. |
+| 🏷️ **7 Recipient Categories** | Organize into *Family*, *Single*, *In-laws*, *Relatives*, *Neighbors*, *Colleagues/Friends*, and *Charity* with quick-filter chips and live search. |
+| 💵 **Banknote Breakdown** | Calculates required notes across RM1, RM5, RM10, RM20, RM50, and RM100 denominations. |
+| 🖨️ **Printable Bank Slip** | Ready-to-print cash withdrawal slip modal formatted for bank tellers with signature blocks and `@media print` styling. |
+| 🛡️ **Hardened Security** | Bcrypt DoS guard (8–72 chars), live DB admin verification, tiered rate limiting, and production error masking. |
+| 🚀 **Single-Process Dev** | Express dynamically embeds Vite in middleware mode. One command, one port (`5172`), and instant $<50\text{ms}$ live HMR without building. |
+
+---
 
 ## 🛠 Tech Stack
 
-- **Frontend**: React, Vite, Tailwind CSS, Framer Motion, Recharts.
-- **Backend**: Node.js, Express.js.
-- **Database**: SQLite (Stored locally in `server/database.db`).
+- **Frontend**: React 18, Vite 5, Tailwind CSS, Framer Motion, Recharts, Heroicons
+- **Backend**: Node.js, Express.js, Prisma ORM, Helmet, Compression, Express Rate Limit, BcryptJS, JWT
+- **Database**: PostgreSQL 18+ (Prisma schema migrations)
+- **Local Dev Stack**: EnvKit (Reverse-proxy on `https://do-itraya.test` with automatic SSL)
 
 ---
 
-## 🚀 Getting Started
+## 📋 Commands Cheat Sheet
+
+| Command | Purpose |
+| :--- | :--- |
+| `npm run dev` | Starts the unified server with Vite HMR in development mode |
+| `npm run build` | Compiles optimized static production assets into `client/dist` |
+| `npm start` | Runs the high-performance production server serving `client/dist` |
+| `npm run reset-password <email> <newPassword>` | CLI utility to reset any user's password directly from the server |
+
+---
+
+## 🚀 Quick Start Guide
 
 ### Prerequisites
+- **Node.js** (v18 or higher)
+- **PostgreSQL** running locally (e.g. via EnvKit or standalone on port `5432`)
 
-- Node.js (v18 or higher recommended).
-
-### 1. Installation
-
-Clone the repository and install dependencies for both client and server.
-
+### 1. Install Dependencies
 ```bash
-# 1. Install Client Dependencies
-cd client
+# Install root, client, and server dependencies
 npm install
-
-# 2. Install Server Dependencies
-cd ../server
-npm install
+cd client && npm install
+cd ../server && npm install
+cd ..
 ```
 
-### 2. Running Locally (Development)
+### 2. Configure Environment Variables
+Ensure `server/.env` contains your database and server credentials:
 
-You need to run **two terminals** for full development experience (Hot Reloading).
+```env
+PORT=5172
+NODE_ENV=development
+JWT_SECRET=your_secure_random_jwt_secret
+CLIENT_URL=https://do-itraya.test
 
-**Terminal 1: Backend Server**
+# Database Configuration
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=do_itraya
+DB_SCHEMA=public
+
+DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?schema=${DB_SCHEMA}"
+```
+
+### 3. Initialize Database
+Apply Prisma migrations to your PostgreSQL database:
 
 ```bash
 cd server
-npm run dev
-# Server runs on http://localhost:3000
+npx prisma migrate deploy
+cd ..
 ```
 
-**Terminal 2: Frontend Client**
+### 4. Run the Application
+Start the unified application with a single command:
 
 ```bash
-cd client
 npm run dev
-# Client runs on http://localhost:5173
 ```
 
-Access the app at `http://localhost:5173`. Make sure port 3000 is free for the API.
+> [!TIP]
+> **Using EnvKit?**  
+> Open the **EnvKit** desktop app and click the **Start** button on the `do-itraya` card. The app is immediately available at **`https://do-itraya.test`** with zero port conflicts.
 
 ---
 
-## 🌍 How to Deploy
+## 🛡️ Security & Hardening Features
 
-This application is configured to be deployed as a **single unit** (Node.js serving React static files).
+This application implements multi-layered security controls:
 
-### Step 1: Build the Frontend
+1. **Input Validation**: Zero-dependency schema validator ([validate.js](server/middleware/validate.js)) rejects non-whitelisted denominations, negative values, and passwords outside 8–72 characters (preventing bcrypt CPU exhaustion DoS).
+2. **Stale Admin Mitigation**: [adminMiddleware.js](server/middleware/adminMiddleware.js) queries live PostgreSQL `is_admin` status on every administrative request, preventing demoted admins from acting on stale JWT claims.
+3. **Tiered Rate Limiting**: [rateLimiter.js](server/middleware/rateLimiter.js) restricts `/api/auth` (10 attempts/15min) and general `/api` (300 requests/15min) using Express `req.ip` behind trusted proxies.
+4. **Data Leakage Prevention**: [errorHandler.js](server/middleware/errorHandler.js) masks internal database traces, query strings, and stack traces when running in `production` mode.
+5. **PostgreSQL Type Safety**: Strict integer coercion on all database write operations preventing Prisma type-mismatch crashes.
 
-Generate the optimized static files for production.
+---
+
+## 🛠️ Server Maintenance & Administration
+
+### Reset User Password (Host CLI)
+If an account password is forgotten or an administrator is locked out, run the maintenance utility directly from the server terminal:
 
 ```bash
-cd client
+npm run reset-password <email> <newPassword>
+```
+
+**Example:**
+```bash
+npm run reset-password hakim_s09@hotmail.com MyNewSecurePass123
+```
+
+> [!NOTE]
+> This command requires direct shell/SSH access to the host machine and cannot be triggered externally via HTTP.
+
+### Run Backend Unit Tests
+Execute the test suites verifying validation, error handling, rate limiting, and admin checks:
+
+```bash
+node server/tests/validation.test.js
+node server/tests/errorHandler.test.js
+node server/tests/adminMiddleware.test.js
+node server/tests/rateLimiter.test.js
+```
+
+---
+
+## 🌍 Production Deployment
+
+### 1. Build Client Assets
+```bash
 npm run build
 ```
 
-_This creates a `dist` folder in `client/dist`._
-
-### Step 2: Run the Server (Production)
-
-The server is configured to serve the files from `client/dist` automatically.
-
+### 2. Start the Production Server
 ```bash
-cd server
 npm start
 ```
-
-### Step 3: Access
-
-The application will be available at:
-`http://localhost:3000` (or your server's IP address)
-
-### Recommended Hosting Options
-
-1.  **VPS (DigitalOcean/EC2) - Recommended**:
-    - Upload the project.
-    - Run `npm run build` in `client`.
-    - Run `npx prisma migrate deploy` in `server` to initialize/update the production DB.
-    - Use `pm2` to keep `server/index.js` running.
-    - Use Nginx as a reverse proxy.
-2.  **Render/Railway/Heroku**:
-    - **Important**: SQLite requires a persistent disk. If using ephemeral file systems (like standard Heroku/Render), your data will be lost on restart. ensure you mount a volume.
-    - Add a build command to install dependencies and build the client.
-    - Add a start command: `npx prisma migrate deploy && node index.js`.
-
-### Post-Deployment Setup (Admin Access)
-
-After deploying to production, the database will be fresh (or updated). You must manually assign the admin role to your user:
-
-1.  Register a user account in the live app.
-2.  Access the server (SSH or Console).
-3.  Open the database:
-    ```bash
-    cd server
-    sqlite3 database.db "UPDATE users SET is_admin=1 WHERE email='your@email.com';"
-    ```
-4.  Log out and log back in to see the Admin features.
+In production (`NODE_ENV=production`), Express automatically serves pre-built, cached static assets from `client/dist` and handles API requests under a single port.
 
 ---
 
-## 🔒 Security Note
-
-- **Database**: The `database.db` file contains sensitive financial/personal data. **DO NOT commit this file to public repositories.**
-- **.gitignore**: The project is pre-configured to ignore `*.db` files. Back up your database manually if needed.
-
 ## 📂 Project Structure
 
-```
+```text
 do-itraya/
-├── client/           # React Frontend
+├── client/                     # React Frontend Application
 │   ├── src/
-│   ├── dist/         # Build output (after npm run build)
-│   └── ...
-├── server/           # Node Backend
-│   ├── prisma/       # Database Schema & Migrations
-│   │   └── schema.prisma
-│   ├── database.db   # SQLite Database
-│   ├── index.js      # Express API & Static Server
-│   └── ...
-└── README.md
+│   │   ├── components/         # UI Components (BankSlipModal, ReceiverList, etc.)
+│   │   ├── pages/              # Route Pages (HomePage, LoginPage, etc.)
+│   │   └── context/            # Global State (AuthContext, ThemeContext)
+│   ├── dist/                   # Production build output (generated)
+│   ├── vite.config.js          # Vite configuration
+│   └── tailwind.config.js      # Festive color palette & styling
+├── server/                     # Node.js Express Backend
+│   ├── middleware/             # Security middlewares (validate, rateLimiter, etc.)
+│   ├── prisma/                 # Database schema & migrations
+│   ├── scripts/                # Administrative tools (resetPassword.js)
+│   ├── tests/                  # Unit test suites
+│   ├── index.js                # Unified server & Vite middleware entry
+│   └── .env                    # Environment credentials (ignored by git)
+├── docs/                       # Project documentation & preview images
+├── package.json                # Root workspace scripts & orchestrator
+└── README.md                   # Project documentation
 ```

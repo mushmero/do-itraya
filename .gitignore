@@ -57,3 +57,6 @@ temp/
 server/*.db
 server/*.sqlite
 server/*.sqlite3
+
+# Agent & Superpowers planning artifacts
+docs/superpowers/
