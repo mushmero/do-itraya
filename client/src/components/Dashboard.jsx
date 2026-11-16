@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   BanknotesIcon,
   UserGroupIcon,
@@ -6,14 +6,17 @@ import {
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
   CheckCircleIcon,
+  PrinterIcon,
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import AnimatedCounter from "./AnimatedCounter";
 import MiniDonutChart from "./MiniDonutChart";
 import TrendSparkline from "./TrendSparkline";
 import YearComparisonChart from "./YearComparisonChart";
+import BankSlipModal from "./BankSlipModal";
 
 const Dashboard = ({ summary, selectedYear }) => {
+  const [isSlipOpen, setIsSlipOpen] = useState(false);
   const { total_planned, total_distributed, balance, notes_breakdown } =
     summary;
 
@@ -249,16 +252,28 @@ const Dashboard = ({ summary, selectedYear }) => {
                 </div>
               </div>
 
-              {/* Summary Badge */}
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full dark:bg-secondary/50 light:bg-slate-100 border dark:border-white/10 light:border-slate-200">
-                <CheckCircleIcon className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs dark:text-slate-300 light:text-slate-600">
-                  {
-                    notes_breakdown.filter((n) => n.remaining_count === 0)
-                      .length
-                  }{" "}
-                  / {notes_breakdown.length} Complete
-                </span>
+              {/* Action & Summary Badges */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsSlipOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40 transition-all shadow-sm active:scale-95"
+                >
+                  <PrinterIcon className="w-4 h-4" />
+                  <span>Bank Slip</span>
+                </button>
+
+                {/* Summary Badge */}
+                <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full dark:bg-secondary/50 light:bg-slate-100 border dark:border-white/10 light:border-slate-200">
+                  <CheckCircleIcon className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs dark:text-slate-300 light:text-slate-600">
+                    {
+                      notes_breakdown.filter((n) => n.remaining_count === 0)
+                        .length
+                    }{" "}
+                    / {notes_breakdown.length} Complete
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -354,6 +369,15 @@ const Dashboard = ({ summary, selectedYear }) => {
 
       {/* Yearly Comparison Chart */}
       <YearComparisonChart />
+
+      {/* Bank Slip Modal */}
+      <BankSlipModal
+        isOpen={isSlipOpen}
+        onClose={() => setIsSlipOpen(false)}
+        notesBreakdown={notes_breakdown}
+        totalPlanned={total_planned}
+        year={selectedYear}
+      />
     </div>
   );
 };

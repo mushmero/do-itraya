@@ -170,3 +170,36 @@ textarea {
 *:focus-visible {
   @apply outline-none ring-2 ring-accent/50 ring-offset-2 ring-offset-primary;
 }
+
+/* Print styles for Bank Cash Withdrawal Slip */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .printable-slip-modal,
+  .printable-slip-modal * {
+    visibility: visible;
+  }
+  .printable-slip-modal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 16px !important;
+    margin: 0 !important;
+  }
+  .print-hidden,
+  .print\:hidden {
+    display: none !important;
+  }
+}
+
