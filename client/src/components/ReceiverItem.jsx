@@ -3,6 +3,59 @@ import { UsersIcon, UserIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 import clsx from "clsx";
 
+const CATEGORY_MAP = {
+  family: {
+    label: "Family",
+    className:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  },
+  single: {
+    label: "Single",
+    className:
+      "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+  },
+  individual: {
+    label: "Single",
+    className:
+      "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+  },
+  "in-laws": {
+    label: "In-laws",
+    className:
+      "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30",
+  },
+  relatives: {
+    label: "Relatives",
+    className:
+      "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30",
+  },
+  neighbors: {
+    label: "Jiran",
+    className:
+      "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/30",
+  },
+  colleagues: {
+    label: "Colleagues",
+    className:
+      "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30",
+  },
+  charity: {
+    label: "Charity",
+    className:
+      "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30",
+  },
+};
+
+const getCategoryInfo = (type) => {
+  const key = (type || "family").toLowerCase();
+  if (CATEGORY_MAP[key]) return CATEGORY_MAP[key];
+  return {
+    label: type ? type.charAt(0).toUpperCase() + type.slice(1) : "Family",
+    className:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  };
+};
+
 const ReceiverItem = ({ receiver, onEdit, onToggleReceived }) => {
   const {
     id,
@@ -15,6 +68,9 @@ const ReceiverItem = ({ receiver, onEdit, onToggleReceived }) => {
   } = receiver;
 
   const totalAmount = children_count * amount_per_packet;
+  const categoryInfo = getCategoryInfo(receiver.type);
+  const isSingle =
+    receiver.type === "individual" || receiver.type === "single";
 
   // Status-based styling with full theme support
   const getCardStyle = () => {
@@ -64,13 +120,23 @@ const ReceiverItem = ({ receiver, onEdit, onToggleReceived }) => {
 
           {/* Name & Info */}
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold dark:text-slate-100 light:text-slate-800 text-lg truncate mb-1.5">
-              {name}
-            </h3>
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <h3 className="font-bold dark:text-slate-100 light:text-slate-800 text-lg truncate">
+                {name}
+              </h3>
+              <span
+                className={clsx(
+                  "text-[10px] font-bold tracking-wider px-2.5 py-0.5 rounded-full border shadow-sm",
+                  categoryInfo.className,
+                )}
+              >
+                {categoryInfo.label}
+              </span>
+            </div>
             {is_eligible ? (
               <div className="flex items-center gap-2 text-xs dark:text-slate-400 light:text-slate-500">
                 <div className="flex items-center gap-1 dark:bg-slate-700/50 light:bg-slate-100 px-2.5 py-1 rounded-full">
-                  {receiver.type === "individual" ? (
+                  {isSingle ? (
                     <>
                       <UserIcon className="w-3.5 h-3.5" />
                       <span>Single</span>

@@ -2,13 +2,28 @@ import React, { useState } from "react";
 import { TrashIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 
+const CATEGORY_OPTIONS = [
+  { value: "family", label: "Family (Keluarga)" },
+  { value: "individual", label: "Individual / Single (Bujang/Warga Emas)" },
+  { value: "in-laws", label: "In-laws (Mertua / Ipar)" },
+  { value: "relatives", label: "Relatives (Saudara Mara)" },
+  { value: "neighbors", label: "Neighbors (Jiran)" },
+  { value: "colleagues", label: "Colleagues / Friends (Rakan)" },
+  { value: "charity", label: "Charity (Asnaf / Sedekah)" },
+];
+
 /**
  * EditReceiverForm - Form for editing receiver details in BottomSheet
  */
 const EditReceiverForm = ({ receiver, onSave, onDelete, onCancel }) => {
+  const initialType =
+    receiver.type === "single"
+      ? "individual"
+      : receiver.type || "family";
+
   const [formData, setFormData] = useState({
     name: receiver.name || "",
-    type: receiver.type || "family", // 'family' or 'individual'
+    type: initialType,
     children_count: receiver.children_count || 1,
     amount_per_packet: receiver.amount_per_packet || 10,
     cash_note: receiver.cash_note || 10,
@@ -16,13 +31,15 @@ const EditReceiverForm = ({ receiver, onSave, onDelete, onCancel }) => {
       receiver.is_eligible !== undefined ? receiver.is_eligible : true,
   });
 
+  const isIndividual =
+    formData.type === "individual" || formData.type === "single";
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave({
       ...receiver,
       ...formData,
-      children_count:
-        formData.type === "individual" ? 1 : formData.children_count,
+      children_count: isIndividual ? 1 : parseInt(formData.children_count) || 1,
     });
   };
 
@@ -34,35 +51,28 @@ const EditReceiverForm = ({ receiver, onSave, onDelete, onCancel }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Recipient Type Toggle */}
-      <div className="flex bg-slate-100 dark:bg-tertiary p-1 rounded-full border border-slate-200 dark:border-white/10">
-        <button
-          type="button"
-          onClick={() => handleChange("type", "family")}
-          className={clsx(
-            "flex-1 py-2 px-4 rounded-full text-sm font-semibold transition-all",
-            formData.type === "family"
-              ? "bg-white dark:bg-slate-700 text-accent shadow-sm"
-              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300",
-          )}
-        >
-          Family
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            handleChange("type", "individual");
-            handleChange("children_count", 1); // Force 1 for individual
+      {/* Category Selector */}
+      <div>
+        <label className="block text-sm font-semibold dark:text-slate-300 light:text-light-text mb-2">
+          Category
+        </label>
+        <select
+          value={formData.type}
+          onChange={(e) => {
+            const newType = e.target.value;
+            handleChange("type", newType);
+            if (newType === "individual" || newType === "single") {
+              handleChange("children_count", 1);
+            }
           }}
-          className={clsx(
-            "flex-1 py-2 px-4 rounded-full text-sm font-semibold transition-all",
-            formData.type === "individual"
-              ? "bg-white dark:bg-slate-700 text-accent shadow-sm"
-              : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300",
-          )}
+          className="w-full dark:bg-tertiary light:bg-white border dark:border-white/10 light:border-slate-300 rounded-xl px-4 py-3 dark:text-white light:text-light-text font-semibold focus:border-accent focus:ring-2 focus:ring-accent/50 outline-none transition-all cursor-pointer"
         >
-          Individual
-        </button>
+          {CATEGORY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Name */}
@@ -107,11 +117,11 @@ const EditReceiverForm = ({ receiver, onSave, onDelete, onCancel }) => {
       {formData.is_eligible && (
         <>
           <div className="grid grid-cols-2 gap-4">
-            {/* Children Count - Only for Family */}
-            {formData.type === "family" ? (
+            {/* Children Count - Only for non-individual */}
+            {!isIndividual ? (
               <div>
                 <label className="block text-sm font-semibold dark:text-slate-300 light:text-light-text mb-2">
-                  Number of Kids
+                  Number of Kids / Packets
                 </label>
                 <input
                   type="number"
@@ -134,11 +144,11 @@ const EditReceiverForm = ({ receiver, onSave, onDelete, onCancel }) => {
             )}
 
             {/* Amount per Packet */}
-            <div className={formData.type === "individual" ? "col-span-2" : ""}>
+            <div className={isIndividual ? "col-span-2" : ""}>
               <label className="block text-sm font-semibold dark:text-slate-300 light:text-light-text mb-2">
-                {formData.type === "individual"
+                {isIndividual
                   ? "Amount to Give (RM)"
-                  : "RM per Kid"}
+                  : "RM per Packet"}
               </label>
               <input
                 type="number"
@@ -186,8 +196,8 @@ const EditReceiverForm = ({ receiver, onSave, onDelete, onCancel }) => {
               </span>
             </div>
             <p className="text-xs dark:text-slate-400 light:text-light-text-secondary mt-1.5">
-              {formData.type === "family"
-                ? `${formData.children_count} kids × RM ${formData.amount_per_packet}`
+              {!isIndividual
+                ? `${formData.children_count} packets × RM ${formData.amount_per_packet}`
                 : `Single recipient (RM ${formData.amount_per_packet})`}{" "}
               using RM {formData.cash_note} notes
             </p>
